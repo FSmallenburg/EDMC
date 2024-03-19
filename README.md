@@ -26,6 +26,8 @@ The simulation code operates in the following units:
 -  Lengths are measured in units of the maximum particle size $\sigma$.
 -  Mass is measured in units of a reference mass $m$ (currently just the mass of any particle, since they are all equal).
 -  Time is measured in units of $\tau = \sqrt{\beta m \sigma^2}$. Here, $\beta = 1/k_B T$ with $k_B$ Boltzmann's constant.
+-  Energy is measured in units of $k_B T$.
+-  Pressure is measured in units of $k_B T / \sigma^3$.
 
 Note that the simulation assumes that no particles with a diameter greater than $1 \sigma$ exist in the simulation, and uses this assumption in the creation of the cell list. Hence, all particles necessarily have a diameter $\sigma_i \leq \sigma$. By default, the simulation code sets the mass of all particles to be equal to $m$ when loading an initial configuration, but mass is explicitly taken into account when determining the effect of collisions. Hence, other choices for the mass can readily be implemented by adapting the initialization functions.
 
