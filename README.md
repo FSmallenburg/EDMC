@@ -6,6 +6,7 @@ This is an event-driven Monte Carlo (EDMD) code for particles interacting via th
 Contains an implementation of Xoshiro256+, see [Ref.](https://doi.org/10.1145/3460772), and [this page](https://prng.di.unimi.it/).
 
 Code published along with the paper: 
+
 [Fast event-driven simulations for soft spheres: from dynamics to Laves phase nucleation](https://doi.org/10.1063/5.0209178)
 A. Castagnède, L. Filion, and F. Smallenburg, 
 Journal Of Chemical Physics **161**, 024116 (2024). 
