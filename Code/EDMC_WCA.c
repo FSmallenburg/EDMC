@@ -671,7 +671,6 @@ void step()
 **************************************************/
 void makeneighborlist(particle* p1)
 {
-    p1->counter++;
     int cdx, cdy, cdz;
     particle* p2;
     double dx, dy, dz, r2, rm;
@@ -852,6 +851,7 @@ int findcollision(particle* p1, particle* p2, double* tmin)
 **************************************************/
 void findcollisions(particle* p1)    //All collisions of particle p1
 {
+    p1->counter++;
     int i;
     double tmin = findneighborlistupdate(p1);   //Time to update neighbor list
     int type = 8;
@@ -924,8 +924,6 @@ void collision(particle* p1)
     }
 
     update(p2);
-    p1->counter++;
-    p2->counter++;
 
     double m1 = p1->mass;
     double m2 = p2->mass;
