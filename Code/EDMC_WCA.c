@@ -77,7 +77,7 @@ double shellsize;
 
 
 //Internal variables
-double time = 0;
+double simtime = 0;
 int currentlist = 0;
 int totalevents;
 
@@ -96,7 +96,7 @@ double icxsize, icysize, iczsize;   //Inverse cell size
 int    cx, cy, cz;                  //Number of cells
 
 double dvtot = 0;                   //Cumulative momentum transfer (for calculating pressure)
-unsigned int colcounter = 0;        //Collision counter (could overflow in a long run, but not really important)
+uint64_t colcounter = 0;        //Collision counter (could overflow in a long run, but not really important)
 
 
 //Options for making snapshots on a logarithmic time scale
@@ -105,7 +105,7 @@ unsigned int colcounter = 0;        //Collision counter (could overflow in a lon
 //Useful for calculating e.g. F(q,t).
 #define MAXLOGSNAPSHOTS 10000
 int makelogsnapshots = 0;       //Toggle on or off
-logsnaptime logsnapshottimes[MAXLOGSNAPSHOTS];
+logsnaptime logsnapshottimes[MAXLOGSNAPSHOTS+2];
 int nextlogsnapshot;
 int numsnapshots = 40;		    //Number of snapshots per batch
 int numbatches = 10;			//Number of batches
@@ -124,11 +124,11 @@ int main(int argc, char** argv)
     printf("Starting\n");
 
 
-    while (time <= maxtime - timeoffset)
+    while (simtime <= maxtime - timeoffset)
     {
       step();
     }
-    time = maxtime - timeoffset;
+    simtime = maxtime - timeoffset;
     printstuff();
     outputsnapshot();
 
@@ -157,7 +157,7 @@ void printstuff()
     double temp = v2tot/(3*(N-1));
     printf("Average kinetic energy: %lf\n", ekin);
     printf("Temperature           : %lf\n", temp);
-    printf("Total time simulated  : %lf\n", time);
+    printf("Total time simulated  : %lf\n", simtime);
 
 }
 
@@ -179,7 +179,7 @@ void init()
     random_exponential_init();
 
 
-    //Initialize particles
+    //Initialize particles (and cell list)
     if      (initialconfig == 0) loadparticles();
     else if (initialconfig == 1) fcc();
     else if (initialconfig == 2) simplecubic();
@@ -209,9 +209,6 @@ void init()
 
     //Initialize event queue
     initevents();
-
-    //Initialize cell list
-    initcelllist();
 
     //Initialize neighbor list
     for (i = 0; i < N; i++)
@@ -294,7 +291,6 @@ void fcc()
 
     printf("step: %lf\n", step);
     initparticles(N);
-    initcelllist();
     printf("Placing particles\n");
 
     p = particles;
@@ -325,6 +321,8 @@ void fcc()
         p->type = 0;
         p->mass = 1;
     }
+
+    initcelllist();
 
     printf("Packing fraction: %lf\n", M_PI / (6.0 * xsize * ysize * zsize) * N);
     printf("Starting configuration from fcc crystal\n");
@@ -358,7 +356,6 @@ void simplecubic()
 
     printf("step: %lf\n", step);
     initparticles(N);
-    initcelllist();
     printf("Placing particles\n");
 
     p = particles;
@@ -377,6 +374,8 @@ void simplecubic()
         p->type = 0;
         p->mass = 1;
     }
+
+    initcelllist();
 
     printf("Packing fraction: %lf\n", M_PI / (6.0 * xsize * ysize * zsize) * N);
     printf("Starting configuration from simple cubic crystal\n");
@@ -401,7 +400,6 @@ void randomparticles()
     zsize = xsize;
 
     initparticles(N);
-    initcelllist();
     printf("Placing particles\n");
 
     p = particles;
@@ -423,6 +421,8 @@ void randomparticles()
         p->mass = 1;
         p++;
     }
+
+    initcelllist();
 
     printf("Density: %lf\n", N / (xsize * ysize * zsize));
     printf("Starting configuration from random placement\n");
@@ -527,7 +527,6 @@ void randommovement()
         p->vy *= fac;
         p->vz *= fac;
     }
-    printf("Starting configuration read from %s\n", inputfilename);
 }
 
 /**************************************************
@@ -536,8 +535,8 @@ void randommovement()
 **************************************************/
 void update(particle* p1)
 {
-    double dt = time - p1->t;
-    p1->t = time;
+    double dt = simtime - p1->t;
+    p1->t = simtime;
     p1->x += dt * p1->vx;
     p1->y += dt * p1->vy;
     p1->z += dt * p1->vz;
@@ -636,12 +635,12 @@ void step()
     }
 
     while (ev->left) ev = ev->left;		//Find first event in tree
-    if (ev->eventtime < time)
+    if (ev->eventtime < simtime)
     {
         printf ("Negative time\n");
     }
 
-    time = ev->eventtime;       //Update the time
+    simtime = ev->eventtime;       //Update the time
     removeevent(ev);            //De-schedule the event we're about to handle
     switch(ev->eventtype)       //Which type?
     {
@@ -739,6 +738,11 @@ void makeneighborlist(particle* p1)
                         rm = shellsize;
                         if (r2 < rm * rm)
                         {
+                            if(p1->nneigh >= MAXNEIGH || p2->nneigh >= MAXNEIGH)
+                            {
+                                printf("Too many neighbors! Increase MAXNEIGH.\n");
+                                exit(3);
+                            }
                             p1->neighbors[p1->nneigh++] = p2;
                             p2->neighbors[p2->nneigh++] = p1;
                         }
@@ -800,7 +804,7 @@ double potential(double r2)
 **************************************************/
 int findcollision(particle* p1, particle* p2, double* tmin)
 {
-    double dt2 = time - p2->t;
+    double dt2 = simtime - p2->t;
     double dx = p1->x - p2->x - dt2 * p2->vx;    //relative distance at current time
     double dy = p1->y - p2->y - dt2 * p2->vy;
     double dz = p1->z - p2->z - dt2 * p2->vz;
@@ -866,46 +870,9 @@ void findcollisions(particle* p1)    //All collisions of particle p1
             type = 0;
         }
     }
-    createevent(tmin + time, p1, partner, type);
+    createevent(tmin + simtime, p1, partner, type);
     p1->counter2 = partner->counter;
 }
-
-
-
-/**************************************************
-**                FINDALLCOLLISIONS
-** All collisions of all particle pairs
-**************************************************/
-void findallcollisions()      
-{
-    int i, j;
-    for (i = 0; i < N; i++)
-    {
-        particle* p1 = particles + i;
-        particle* partner = p1;
-        double tmin = findneighborlistupdate(p1);
-        int type = 8;
-        for (j = 0; j < p1->nneigh; j++)
-        {
-            particle* p2 = p1->neighbors[j];
-            if (p2 > p1)
-            {
-                if(findcollision(p1, p2, &tmin))
-                {
-                    partner = p2;
-                    type = 0;
-                }
-            }
-        }
-        createevent(tmin, p1, partner, type);
-        p1->counter2 = partner->counter;
-    }
-}
-
-
-
-
-
 
 
 /**************************************************
@@ -1194,7 +1161,7 @@ void removeevent(particle* oldevent)
 void outputsnapshot()
 {
     char filename[200];
-    sprintf(filename, "snapshot_end.sph");
+    snprintf(filename, sizeof(filename), "snapshot_end.sph");
     FILE* file = fopen(filename, "w");
     int i;
     particle* p;
@@ -1202,11 +1169,11 @@ void outputsnapshot()
     for (i = 0; i < N; i++)
     {
         p = &(particles[i]);
-        double dt = time - p->t;
+        double dt = simtime - p->t;
         p->x += p->vx * dt;
         p->y += p->vy * dt;
         p->z += p->vz * dt;
-        p->t = time;
+        p->t = simtime;
 
 
         fprintf(file, "%c %.12lf  %.12lf  %.12lf  %lf\n", 'a' + p->type, p->x + xsize * p->boxestraveledx, p->y + ysize * p->boxestraveledy, p->z + zsize * p->boxestraveledz, p->radius);
@@ -1258,7 +1225,7 @@ void write()
     int i;
     particle* p;
     FILE* file;
-    double realtime = time  + timeoffset;
+    double realtime = simtime  + timeoffset;
 
     double en = 0, kinen = 0;
     int maxneigh = 0, minneigh = MAXNEIGH;
@@ -1289,12 +1256,12 @@ void write()
     if (mergecounter == 0) listsize1 = listsize2 = 0.0;
     listcounter1 = listcounter2 = mergecounter = 0;
 
-    printf("Simtime: %lf, Collisions: %u, Press: %lf, PotEn: %lf, Temperature: %lf, Listsizes: (%lf, %lf), Neigh: %d - %d\n", 
+    printf("Simtime: %lf, Collisions: %lu, Press: %lf, PotEn: %lf, Temperature: %lf, Listsizes: (%lf, %lf), Neigh: %d - %d\n", 
                 realtime, colcounter, pressnow, en, temperature, listsize1, listsize2, minneigh, maxneigh);
     char filename[200];
     if (makesnapshots && realtime - lastsnapshottime > snapshotinterval - 0.001)
     {
-        sprintf(filename, "mov.n%d.v%.4lf.sph", N, xsize * ysize * zsize);
+        snprintf(filename, sizeof(filename), "mov.n%d.v%.4lf.sph", N, xsize * ysize * zsize);
         if (first) { first = 0; file = fopen(filename, "w"); }
         else                     file = fopen(filename, "a");
         fprintf(file, "%d\n%.12lf %.12lf %.12lf\n", (int)N, xsize, ysize, zsize);
@@ -1309,7 +1276,7 @@ void write()
         lastsnapshottime = realtime;
     }
 
-    sprintf(filename, "press.n%d.v%.4lf.sph", N, xsize * ysize * zsize);
+    snprintf(filename, sizeof(filename), "press.n%d.v%.4lf.sph", N, xsize * ysize * zsize);
     if (counter == 0) file = fopen(filename, "w");
     else              file = fopen(filename, "a");
     fprintf(file, "%lf %lf %lf\n", realtime, pressnow, en);
@@ -1317,7 +1284,7 @@ void write()
 
     counter++;
 
-    writeevent->eventtime = time + writeinterval;
+    writeevent->eventtime = simtime + writeinterval;
     addevent(writeevent);
 }
 
@@ -1458,14 +1425,14 @@ void writelogsnapshot()
   int i;
   FILE* file;
   char filename[200];
-  sprintf (filename, "logsnap.b%03d.s%05d", batch, index);
+    snprintf(filename, sizeof(filename), "logsnap.b%03d.s%05d", batch, index);
   file = fopen (filename, "w");
   if (!file)
   {
     printf ("Failed to open file %s\n", filename);
     return;
   }
-  fprintf (file, "%d\n%lf %lf %lf    Time: %lf\n", (int) N, xsize, ysize, zsize, time+timeoffset);
+  fprintf (file, "%d\n%lf %lf %lf    Time: %lf\n", (int) N, xsize, ysize, zsize, simtime+timeoffset);
   for ( i = 0; i < N; i++)
   {
     p = &(particles[i]);
@@ -1499,7 +1466,7 @@ void resettime()
         p->counter = 0;
         p->counter2 = 0;
     }
-    time = 0;
+    simtime = 0;
     timeoffset += resetinterval;        //Keep track of the total offset
     removeevent(writeevent);                //Fix the write event timing
     if (makelogsnapshots) removeevent(logsnapshotevent);

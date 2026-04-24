@@ -51,7 +51,6 @@ int celloffset(int a, int b, int c);
 
 void step();
 int findcollision(particle*, particle*, double*);
-void findallcollisions();
 void findcollisions(particle*);
 void collision(particle*);
 
