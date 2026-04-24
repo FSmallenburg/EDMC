@@ -589,7 +589,7 @@ void initcelllist()
 **************************************************/
 int celloffset(int a, int b, int c)
 {
-    return a + b*cx + c*cy*cy;
+    return a + b*cx + c*cx*cy;
 }
 
 
