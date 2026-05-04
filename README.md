@@ -7,10 +7,8 @@ Contains an implementation of Xoshiro256+, see [Ref.](https://doi.org/10.1145/34
 
 Code published along with the paper: 
 
-[Fast event-driven simulations for soft spheres: from dynamics to Laves phase nucleation](https://doi.org/10.1063/5.0209178)
-
-A. Castagnède, L. Filion, and F. Smallenburg, 
-
+[Fast event-driven simulations for soft spheres: from dynamics to Laves phase nucleation](https://doi.org/10.1063/5.0209178)  
+A. Castagnède, L. Filion, and F. Smallenburg,   
 Journal Of Chemical Physics **161**, 024116 (2024). 
 
 
@@ -55,5 +53,8 @@ The movie files that are created by the simulation code include multiple of thes
 
 The simulation codes can read in snapshots in this format as initial configurations (depending on the choice of "initialconfig" in the code). Periodic boundaries will be applied to the snapshot at the start of the simulation.  Note again that the simulation code assumes that all box lengths, positions, and radii are given in units of $\sigma$, which is the largest possible particle diameter. Hence, the radius of a particle in the initial configuration should never be given as a number larger than 0.5.
 
+Configuration files created by these codes (.sph format) can be visualized with [Colloid Visualization Tool](https://github.com/FSmallenburg/CVT).
+
 Adaptation to different configuration file formats can be done via modification of the ``loadparticles``, ``write``, and ``outputsnapshot`` functions.
+
 
